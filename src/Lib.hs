@@ -3,8 +3,9 @@ module Lib
   )
 where
 
-import Control.Exception (throwIO)
-import Control.Monad (unless, when, (>=>))
+import Control.Exception (Exception, throwIO)
+import Control.Monad (unless, when)
+import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Data.Foldable (find)
@@ -13,6 +14,11 @@ import Data.Text (Text)
 import GI.Gst (mk_IteratorFoldFunction)
 import qualified GI.Gst as GST
 
+data GstreamerTestException = LinkingError | StateChangeError | WaitingError
+  deriving (Show)
+
+instance Exception GstreamerTestException
+
 play :: IO ()
 play = do
   p <- runMaybeT maybePlay
@@ -20,28 +26,26 @@ play = do
     Nothing -> error "Something when wrong"
     Just msg -> print msg
 
-maybePlay :: MaybeT IO Text
+maybePlay :: MaybeT IO ()
 maybePlay = do
   pipeline <- makePipeline
   [source, sink] <- addMany pipeline ["videotestsrc", "autovideosink"]
 
   linkResult <- GST.elementLink source sink
-  unless linkResult (error "Could not link elements")
+  unless linkResult (throwM LinkingError)
 
   -- Start playing
   result <- GST.elementSetState pipeline GST.StatePlaying
   when
     (result == GST.StateChangeReturnFailure)
-    (error "Could not set state to playing")
+    (throwM StateChangeError)
 
   -- Wait until error or EOS
   msg <- waitForErrorOrEos pipeline
   messageTypes <- GST.getMessageType msg
 
   when (isJust $ find (GST.MessageTypeError ==) messageTypes) $ do
-    error "Error waiting for message"
-
-  pure "Got to the end!"
+    throwM WaitingError
   where
     makePipeline :: MaybeT IO GST.Pipeline
     makePipeline = GST.init Nothing >> GST.pipelineNew Nothing
