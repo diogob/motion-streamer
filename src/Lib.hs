@@ -6,7 +6,7 @@ where
 import Control.Exception (Exception, throwIO)
 import Control.Monad (unless, when)
 import Control.Monad.Catch (throwM)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Data.Foldable (find)
 import Data.Maybe (isJust)
@@ -29,10 +29,15 @@ play = do
 maybePlay :: MaybeT IO ()
 maybePlay = do
   pipeline <- makePipeline
-  [source, sink] <- addMany pipeline ["videotestsrc", "autovideosink"]
+  elements <- addMany pipeline ["videotestsrc", "videoconvert", "motioncells", "videoconvert", "autovideosink"]
+  let [source, _, motion, _, sink] = elements
+      pairsToLink = (zip <*> tail) elements
+  GST.utilSetObjectArg source "pattern" "ball"
 
-  linkResult <- GST.elementLink source sink
-  unless linkResult (throwM LinkingError)
+  --  <- GST.elementLink source convert1
+
+  linkResults <- mapM (uncurry GST.elementLink) pairsToLink
+  unless (and linkResults) (throwM LinkingError)
 
   -- Start playing
   result <- GST.elementSetState pipeline GST.StatePlaying
@@ -45,6 +50,10 @@ maybePlay = do
   messageTypes <- GST.getMessageType msg
 
   when (isJust $ find (GST.MessageTypeError ==) messageTypes) $ do
+    liftIO $ putStrLn "Error: "
+    (_, errorMessage) <- GST.messageParseError msg
+    liftIO $ print errorMessage
+
     throwM WaitingError
   where
     makePipeline :: MaybeT IO GST.Pipeline
