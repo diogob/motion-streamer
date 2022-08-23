@@ -46,23 +46,40 @@ maybePlay = do
     (throwM StateChangeError)
 
   -- Wait until error or EOS
-  msg <- waitForErrorOrEos pipeline
-  messageTypes <- GST.getMessageType msg
-
-  when (isJust $ find (GST.MessageTypeError ==) messageTypes) $ do
-    liftIO $ putStrLn "Error: "
-    (_, errorMessage) <- GST.messageParseError msg
-    liftIO $ print errorMessage
-
-    throwM WaitingError
+  respondToMessages pipeline
   where
+    respondToMessages pipeline = do
+      -- Wait until error or EOS
+      liftIO $ putStrLn "Waiting for pipeline message..."
+
+      msg <- waitForErrorOrEos pipeline
+      messageTypes <- GST.getMessageType msg
+
+      liftIO $ putStrLn "Pipeline message received"
+
+      when (isJust $ find (GST.MessageTypeError ==) messageTypes) $ do
+        liftIO $ putStrLn "Error: "
+        (_, errorMessage) <- GST.messageParseError msg
+        liftIO $ print errorMessage
+        throwM WaitingError
+
+      when (isJust $ find (GST.MessageTypeElement ==) messageTypes) $ do
+        liftIO $ putStrLn "Motion: "
+        str <- MaybeT $ GST.messageGetStructure msg
+        nfields <- GST.structureNFields str
+        when (nfields > 0) $ do
+          fname <- GST.structureNthFieldName str (fromIntegral nfields - 1)
+          liftIO $ print $ "Message: " <> fname
+
+      respondToMessages pipeline
+
     makePipeline :: MaybeT IO GST.Pipeline
     makePipeline = GST.init Nothing >> GST.pipelineNew Nothing
 
     waitForErrorOrEos :: GST.Pipeline -> MaybeT IO GST.Message
     waitForErrorOrEos pipeline = do
       b <- MaybeT $ GST.elementGetBus pipeline
-      MaybeT $ GST.busTimedPopFiltered b GST.CLOCK_TIME_NONE [GST.MessageTypeError, GST.MessageTypeEos]
+      MaybeT $ GST.busTimedPopFiltered b GST.CLOCK_TIME_NONE [GST.MessageTypeError, GST.MessageTypeEos, GST.MessageTypeElement]
 
     addMany :: GST.Pipeline -> [Text] -> MaybeT IO [GST.Element]
     addMany pipeline names = do
