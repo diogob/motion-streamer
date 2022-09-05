@@ -11,7 +11,6 @@ import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Data.Foldable (find)
 import Data.Maybe (isJust)
 import Data.Text (Text)
-import GI.Gst (mk_IteratorFoldFunction)
 import qualified GI.Gst as GST
 
 data GstreamerTestException = LinkingError | StateChangeError | WaitingError
@@ -48,9 +47,15 @@ maybePlay = do
   -- Wait until error or EOS
   respondToMessages pipeline
   where
+    -- onMessageType messageType action
     respondToMessages pipeline = do
       -- Wait until error or EOS
       liftIO $ putStrLn "Waiting for pipeline message..."
+
+      msg <- waitForErrorOrEos pipeline
+      messageTypes <- GST.getMessageType msg
+
+      liftIO $ putStrLn "Pipeline message received"
 
       msg <- waitForErrorOrEos pipeline
       messageTypes <- GST.getMessageType msg
@@ -64,7 +69,6 @@ maybePlay = do
         throwM WaitingError
 
       when (isJust $ find (GST.MessageTypeElement ==) messageTypes) $ do
-        liftIO $ putStrLn "Motion: "
         str <- MaybeT $ GST.messageGetStructure msg
         nfields <- GST.structureNFields str
         when (nfields > 0) $ do
@@ -76,10 +80,13 @@ maybePlay = do
     makePipeline :: MaybeT IO GST.Pipeline
     makePipeline = GST.init Nothing >> GST.pipelineNew Nothing
 
-    waitForErrorOrEos :: GST.Pipeline -> MaybeT IO GST.Message
-    waitForErrorOrEos pipeline = do
+    waitForMessageTypes :: [GST.MessageType] -> GST.Pipeline -> MaybeT IO GST.Message
+    waitForMessageTypes messageTypes pipeline = do
       b <- MaybeT $ GST.elementGetBus pipeline
-      MaybeT $ GST.busTimedPopFiltered b GST.CLOCK_TIME_NONE [GST.MessageTypeError, GST.MessageTypeEos, GST.MessageTypeElement]
+      MaybeT $ GST.busTimedPopFiltered b GST.CLOCK_TIME_NONE messageTypes
+
+    waitForErrorOrEos :: GST.Pipeline -> MaybeT IO GST.Message
+    waitForErrorOrEos = waitForMessageTypes [GST.MessageTypeError, GST.MessageTypeEos, GST.MessageTypeElement]
 
     addMany :: GST.Pipeline -> [Text] -> MaybeT IO [GST.Element]
     addMany pipeline names = do
