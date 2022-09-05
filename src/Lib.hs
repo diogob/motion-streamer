@@ -52,15 +52,8 @@ maybePlay = do
       -- Wait until error or EOS
       liftIO $ putStrLn "Waiting for pipeline message..."
 
-      msg <- waitForErrorOrEos pipeline
+      msg <- waitForErrorOrEosOrElement pipeline
       messageTypes <- GST.getMessageType msg
-
-      liftIO $ putStrLn "Pipeline message received"
-
-      msg <- waitForErrorOrEos pipeline
-      messageTypes <- GST.getMessageType msg
-
-      liftIO $ putStrLn "Pipeline message received"
 
       when (isJust $ find (GST.MessageTypeError ==) messageTypes) $ do
         liftIO $ putStrLn "Error: "
@@ -85,8 +78,8 @@ maybePlay = do
       b <- MaybeT $ GST.elementGetBus pipeline
       MaybeT $ GST.busTimedPopFiltered b GST.CLOCK_TIME_NONE messageTypes
 
-    waitForErrorOrEos :: GST.Pipeline -> MaybeT IO GST.Message
-    waitForErrorOrEos = waitForMessageTypes [GST.MessageTypeError, GST.MessageTypeEos, GST.MessageTypeElement]
+    waitForErrorOrEosOrElement :: GST.Pipeline -> MaybeT IO GST.Message
+    waitForErrorOrEosOrElement = waitForMessageTypes [GST.MessageTypeError, GST.MessageTypeEos, GST.MessageTypeElement]
 
     addMany :: GST.Pipeline -> [Text] -> MaybeT IO [GST.Element]
     addMany pipeline names = do
