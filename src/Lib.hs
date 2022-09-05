@@ -49,9 +49,6 @@ maybePlay = do
   where
     -- onMessageType messageType action
     respondToMessages pipeline = do
-      -- Wait until error or EOS
-      liftIO $ putStrLn "Waiting for pipeline message..."
-
       msg <- waitForErrorOrEosOrElement pipeline
       messageTypes <- GST.getMessageType msg
 
@@ -66,7 +63,7 @@ maybePlay = do
         nfields <- GST.structureNFields str
         when (nfields > 0) $ do
           fname <- GST.structureNthFieldName str (fromIntegral nfields - 1)
-          liftIO $ print $ "Message: " <> fname
+          when (fname == "motion_begin" || fname == "motion_finished") $ liftIO $ print $ "Motion change: " <> fname
 
       respondToMessages pipeline
 
