@@ -52,18 +52,19 @@ maybePlay = do
       msg <- waitForErrorOrEosOrElement pipeline
       messageTypes <- GST.getMessageType msg
 
-      when (isJust $ find (GST.MessageTypeError ==) messageTypes) $ do
-        liftIO $ putStrLn "Error: "
-        (_, errorMessage) <- GST.messageParseError msg
-        liftIO $ print errorMessage
-        throwM WaitingError
-
-      when (isJust $ find (GST.MessageTypeElement ==) messageTypes) $ do
-        str <- MaybeT $ GST.messageGetStructure msg
-        nfields <- GST.structureNFields str
-        when (nfields > 0) $ do
-          fname <- GST.structureNthFieldName str (fromIntegral nfields - 1)
-          when (fname == "motion_begin" || fname == "motion_finished") $ liftIO $ print $ "Motion change: " <> fname
+      case messageTypes of
+        [GST.MessageTypeError] -> do
+          liftIO $ putStrLn "Error: "
+          (_, errorMessage) <- GST.messageParseError msg
+          liftIO $ print errorMessage
+          throwM WaitingError
+        [GST.MessageTypeElement] -> do
+          str <- MaybeT $ GST.messageGetStructure msg
+          nfields <- GST.structureNFields str
+          when (nfields > 0) $ do
+            fname <- GST.structureNthFieldName str (fromIntegral nfields - 1)
+            when (fname == "motion_begin" || fname == "motion_finished") $ liftIO $ print $ "Motion change: " <> fname
+        _ -> pure ()
 
       respondToMessages pipeline
 
