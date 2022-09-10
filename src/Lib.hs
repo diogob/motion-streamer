@@ -3,6 +3,7 @@ module Lib
   )
 where
 
+import Config
 import Control.Exception (Exception, throwIO)
 import Control.Monad (unless, when)
 import Control.Monad.Catch (throwM)
@@ -18,18 +19,18 @@ data GstreamerTestException = LinkingError | StateChangeError | WaitingError
 
 instance Exception GstreamerTestException
 
-play :: IO ()
-play = do
-  p <- runMaybeT maybePlay
+play :: Config -> IO ()
+play config = do
+  p <- runMaybeT $ maybePlay config
   case p of
     Nothing -> error "Something when wrong"
     Just msg -> print msg
 
-maybePlay :: MaybeT IO ()
-maybePlay = do
+maybePlay :: Config -> MaybeT IO ()
+maybePlay config = do
   pipeline <- makePipeline
-  elements <- addMany pipeline ["videotestsrc", "videoconvert", "motioncells", "videoconvert", "autovideosink"]
-  let [source, _, motion, _, sink] = elements
+  elements <- addMany pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "videoconvert", "motioncells", "videoconvert", "autovideosink"]
+  let source : _ = elements
       pairsToLink = (zip <*> tail) elements
   GST.utilSetObjectArg source "pattern" "ball"
 

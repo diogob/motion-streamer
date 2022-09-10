@@ -1,6 +1,7 @@
 module Main where
 
+import Config
 import Lib
 
 main :: IO ()
-main = play
+main = readConfig >>= play
