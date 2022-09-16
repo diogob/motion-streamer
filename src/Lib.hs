@@ -12,6 +12,7 @@ import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Data.Foldable (find)
 import Data.Maybe (isJust)
 import Data.Text (Text)
+import qualified GI.Gst as GET
 import qualified GI.Gst as GST
 
 data GstreamerTestException = LinkingError | StateChangeError | WaitingError
@@ -29,15 +30,22 @@ play config = do
 maybePlay :: Config -> MaybeT IO ()
 maybePlay config = do
   pipeline <- makePipeline
-  elements <- addMany pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "videoconvert", "motioncells", "videoconvert", "autovideosink"]
-  let source : _ = elements
-      pairsToLink = (zip <*> tail) elements
+  elements <- addMany pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "videoconvert", "motioncells", "videoconvert", "tee", "queue", "autovideosink", "queue", "autovideosink"]
+  let source : _ : _ : lastConvert : tee : _ : _ : queue : videoSink : _ = elements
+      pairsToLink = (zip <*> tail) (take 7 elements)
   GST.utilSetObjectArg source "pattern" "ball"
 
   --  <- GST.elementLink source convert1
 
   linkResults <- mapM (uncurry GST.elementLink) pairsToLink
   unless (and linkResults) (throwM LinkingError)
+
+  teeVideoSinkPad <- MaybeT $ GST.elementRequestPadSimple tee "src_%u"
+  qVideoSinkPad <- MaybeT $ GST.elementGetStaticPad queue "sink"
+  r <- GST.padLink teeVideoSinkPad qVideoSinkPad
+
+  GST.elementLink queue videoSink
+  unless (r == GST.PadLinkReturnOk) (throwM LinkingError)
 
   -- Start playing
   result <- GST.elementSetState pipeline GST.StatePlaying
