@@ -30,8 +30,8 @@ play config = do
 maybePlay :: Config -> MaybeT IO ()
 maybePlay config = do
   pipeline <- makePipeline
-  elements <- addMany pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "videoconvert", "motioncells", "videoconvert", "tee", "queue", "autovideosink", "queue", "autovideosink"]
-  let source : _ : _ : lastConvert : tee : _ : _ : queue : videoSink : _ = elements
+  elements <- addMany pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "videoconvert", "motioncells", "videoconvert", "tee", "queue", "autovideosink", "queue", "vp9enc", "rtpvp9pay", "udpsink"]
+  let source : _ : _ : lastConvert : tee : _ : _ : queue : vp9 : rtp : udpSink : _ = elements
       pairsToLink = (zip <*> tail) (take 7 elements)
   GST.utilSetObjectArg source "pattern" "ball"
 
@@ -44,8 +44,13 @@ maybePlay config = do
   qVideoSinkPad <- MaybeT $ GST.elementGetStaticPad queue "sink"
   r <- GST.padLink teeVideoSinkPad qVideoSinkPad
 
-  GST.elementLink queue videoSink
   unless (r == GST.PadLinkReturnOk) (throwM LinkingError)
+
+  GST.utilSetObjectArg udpSink "host" "0.0.0.0"
+  GST.utilSetObjectArg udpSink "port" "5000"
+
+  linkResults <- mapM (uncurry GST.elementLink) [(queue, vp9), (vp9, rtp), (rtp, udpSink)]
+  unless (and linkResults) (throwM LinkingError)
 
   -- Start playing
   result <- GST.elementSetState pipeline GST.StatePlaying
