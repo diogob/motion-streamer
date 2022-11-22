@@ -35,8 +35,6 @@ maybePlay config = do
       pairsToLink = (zip <*> tail) (take 7 elements)
   GST.utilSetObjectArg source "pattern" "ball"
 
-  --  <- GST.elementLink source convert1
-
   linkResults <- mapM (uncurry GST.elementLink) pairsToLink
   unless (and linkResults) (throwM LinkingError)
 
@@ -52,6 +50,18 @@ maybePlay config = do
   linkResults <- mapM (uncurry GST.elementLink) [(queue, vp9), (vp9, rtp), (rtp, udpSink)]
   unless (and linkResults) (throwM LinkingError)
 
+  -- recording portion of the pipeline
+  teePad <- MaybeT $ GST.elementRequestPadSimple tee "src_%u"
+  [queue, valve, vp9enc, webmmux, filesink] <- addMany pipeline ["queue", "valve", "vp9enc", "webmmux", "filesink"]
+  GST.utilSetObjectArg filesink "location" "./test.webm"
+  GST.utilSetObjectArg valve "drop" "true"
+  linkResults <- mapM (uncurry GST.elementLink) [(queue, vp9enc), (vp9enc, webmmux), (webmmux, filesink)]
+  unless (and linkResults) (throwM LinkingError)
+
+  queuePad <- MaybeT $ GST.elementGetStaticPad queue "sink"
+  r <- GST.padLink teePad queuePad
+  unless (r == GST.PadLinkReturnOk) (throwM LinkingError)
+
   -- Start playing
   result <- GST.elementSetState pipeline GST.StatePlaying
   when
@@ -59,10 +69,16 @@ maybePlay config = do
     (throwM StateChangeError)
 
   -- Wait until error or EOS
-  respondToMessages pipeline
+  respondToMessages pipeline valve
   where
-    -- onMessageType messageType action
-    respondToMessages pipeline = do
+    stopRecording valve = do
+      GST.utilSetObjectArg valve "drop" "true"
+      liftIO $ print "Recording stopped"
+    startRecording valve = do
+      GST.utilSetObjectArg valve "drop" "false"
+      liftIO $ print "Recording..."
+
+    respondToMessages pipeline valve = do
       msg <- waitForErrorOrEosOrElement pipeline
       messageTypes <- GST.getMessageType msg
 
@@ -78,9 +94,11 @@ maybePlay config = do
           when (nfields > 0) $ do
             fname <- GST.structureNthFieldName str (fromIntegral nfields - 1)
             when (fname == "motion_begin" || fname == "motion_finished") $ liftIO $ print $ "Motion change: " <> fname
+            when (fname == "motion_begin") $ startRecording valve
+            when (fname == "motion_finished") $ stopRecording valve
         _ -> pure ()
 
-      respondToMessages pipeline
+      respondToMessages pipeline valve
 
     makePipeline :: MaybeT IO GST.Pipeline
     makePipeline = GST.init Nothing >> GST.pipelineNew Nothing
@@ -102,4 +120,4 @@ maybePlay config = do
 
     make kind = MaybeT $ GST.elementFactoryMake kind Nothing
 
--- gst-launch-1.0 udpsrc address=192.168.1.101 port=5000 caps=application/x-rtp ! rtph264depay ! h264parse ! avdec_h264 ! videorate ! videoscale ! video/x-raw,width=320,height=240,framerate=5/1 ! videoconvert ! motioncells datafile=motion-yo  ! videoconvert ! xvimagesink
+-- ❯ gst-launch-1.0 -v udpsrc port=5000  ! "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)VP9, payload=(int)96, ssrc=(uint)101494402, timestamp-offset=(uint)1062469180, seqnum-offset=(uint)10285, a-framerate=(string)30" ! rtpvp9depay ! vp9dec ! decodebin ! videoconvert ! autovideosink sync=false
