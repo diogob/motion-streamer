@@ -33,7 +33,7 @@ library
       src
   build-depends:
       base >=4.7 && <5
-    , gi-gst >= 1.0.1 && <2
+    , gi-gst >= 1.0.25 && <2
     , haskell-gi >= 0.26.0 && < 0.27
     , transformers >= 0.5.6.2 && < 0.6
     , text >= 1.2.5.0 && < 1.3
