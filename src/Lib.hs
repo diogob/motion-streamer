@@ -12,8 +12,8 @@ import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Data.Foldable (find)
 import Data.Maybe (isJust)
 import Data.Text (Text)
-import qualified GI.Gst as GET
 import qualified GI.Gst as GST
+import qualified GI.Gst.Objects.Element as GST
 
 data GstreamerTestException = LinkingError | StateChangeError | WaitingError
   deriving (Show)
@@ -38,7 +38,7 @@ maybePlay config = do
   linkResults <- mapM (uncurry GST.elementLink) pairsToLink
   unless (and linkResults) (throwM LinkingError)
 
-  teeVideoSinkPad <- MaybeT $ GST.elementRequestPadSimple tee "src_%u"
+  teeVideoSinkPad <- MaybeT $ GST.elementGetRequestPad tee "src_%u"
   qVideoSinkPad <- MaybeT $ GST.elementGetStaticPad queue "sink"
   r <- GST.padLink teeVideoSinkPad qVideoSinkPad
 
@@ -51,7 +51,7 @@ maybePlay config = do
   unless (and linkResults) (throwM LinkingError)
 
   -- recording portion of the pipeline
-  teePad <- MaybeT $ GST.elementRequestPadSimple tee "src_%u"
+  teePad <- MaybeT $ GST.elementGetRequestPad tee "src_%u"
   [queue, valve, vp9enc, webmmux, filesink] <- addMany pipeline ["queue", "valve", "vp9enc", "webmmux", "filesink"]
   GST.utilSetObjectArg filesink "location" "./test.webm"
   GST.utilSetObjectArg valve "drop" "true"
