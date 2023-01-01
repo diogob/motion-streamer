@@ -61,6 +61,7 @@ play config = do
 
   -- Wait until error or EOS
   respondToMessages pipeline valve
+
   where
     stopRecording valve = do
       GST.utilSetObjectArg valve "drop" "true"
