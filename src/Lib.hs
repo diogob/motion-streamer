@@ -15,10 +15,10 @@ import Data.Text (Text)
 import qualified GI.Gst as GST
 import qualified GI.Gst.Objects.Element as GST
 
-data GstreamerTestException = LinkingError | StateChangeError | WaitingError
+data GSError = LinkingError | StateChangeError | WaitingError
   deriving (Show)
 
-instance Exception GstreamerTestException
+instance Exception GSError
 
 play :: Config -> IO ()
 play config = do
