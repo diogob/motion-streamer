@@ -93,31 +93,31 @@ play config = do
 
       respondToMessages pipeline valve
 
-    maybeThrow :: GSError -> IO (Maybe a)-> IO a
-    maybeThrow error action = do
-      maybeAction <- action
-      case maybeAction of
-        Just a -> pure a
-        Nothing -> throwM error
+maybeThrow :: GSError -> IO (Maybe a)-> IO a
+maybeThrow error action = do
+  maybeAction <- action
+  case maybeAction of
+    Just a -> pure a
+    Nothing -> throwM error
 
-    makePipeline :: IO GST.Pipeline
-    makePipeline = GST.init Nothing >> GST.pipelineNew Nothing
+makePipeline :: IO GST.Pipeline
+makePipeline = GST.init Nothing >> GST.pipelineNew Nothing
 
-    waitForMessageTypes :: [GST.MessageType] -> GST.Pipeline -> IO GST.Message
-    waitForMessageTypes messageTypes pipeline = do
-      b <- maybeThrow BusError $ GST.elementGetBus pipeline
-      maybeThrow MessageError $ GST.busTimedPopFiltered b GST.CLOCK_TIME_NONE messageTypes
+waitForMessageTypes :: [GST.MessageType] -> GST.Pipeline -> IO GST.Message
+waitForMessageTypes messageTypes pipeline = do
+  b <- maybeThrow BusError $ GST.elementGetBus pipeline
+  maybeThrow MessageError $ GST.busTimedPopFiltered b GST.CLOCK_TIME_NONE messageTypes
 
-    waitForErrorOrEosOrElement :: GST.Pipeline -> IO GST.Message
-    waitForErrorOrEosOrElement = waitForMessageTypes [GST.MessageTypeError, GST.MessageTypeEos, GST.MessageTypeElement]
+waitForErrorOrEosOrElement :: GST.Pipeline -> IO GST.Message
+waitForErrorOrEosOrElement = waitForMessageTypes [GST.MessageTypeError, GST.MessageTypeEos, GST.MessageTypeElement]
 
-    addMany :: GST.Pipeline -> [Text] -> IO [GST.Element]
-    addMany pipeline names = do
-      let make = flip GST.elementFactoryMake Nothing
-      let maybeMake name = maybeThrow FactoryError $ make name
-      elements <- mapM maybeMake names
-      addResults <- mapM (GST.binAdd pipeline) elements
-      when (any not addResults) (throwM AddError)
-      pure elements
+addMany :: GST.Pipeline -> [Text] -> IO [GST.Element]
+addMany pipeline names = do
+  let make = flip GST.elementFactoryMake Nothing
+  let maybeMake name = maybeThrow FactoryError $ make name
+  elements <- mapM maybeMake names
+  addResults <- mapM (GST.binAdd pipeline) elements
+  when (any not addResults) (throwM AddError)
+  pure elements
 
 -- ❯ gst-launch-1.0 -v udpsrc port=5000  ! "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)VP9, payload=(int)96, ssrc=(uint)101494402, timestamp-offset=(uint)1062469180, seqnum-offset=(uint)10285, a-framerate=(string)30" ! rtpvp9depay ! vp9dec ! decodebin ! videoconvert ! autovideosink sync=false
