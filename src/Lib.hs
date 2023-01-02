@@ -75,11 +75,11 @@ play config = do
       respondToMessages pipeline valve
 
 maybeThrow :: GSError -> IO (Maybe a) -> IO a
-maybeThrow error action = do
+maybeThrow gsError action = do
   maybeAction <- action
   case maybeAction of
     Just a -> pure a
-    Nothing -> throwM error
+    Nothing -> throwM gsError
 
 makePipeline :: IO GST.Pipeline
 makePipeline = GST.init Nothing >> GST.pipelineNew Nothing
