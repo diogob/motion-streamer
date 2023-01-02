@@ -23,21 +23,22 @@ instance Exception GSError
 play :: Config -> IO ()
 play config = do
   pipeline <- makePipeline
+
+  -- Add 3 segments to pipeline: source, network sink and file sink
   [source, _, _, lastConvert, tee, _, _] <- addManyLinked pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "videoconvert", "motioncells", "videoconvert", "tee", "queue", "autovideosink"]
-  [queue, vp9, rtp, udpSink] <- addManyLinked pipeline ["queue", "vp9enc", "rtpvp9pay", "udpsink"]
+  [networkQ, vp9, rtp, udpSink] <- addManyLinked pipeline ["queue", "vp9enc", "rtpvp9pay", "udpsink"]
+  [fileQ, valve, vp9enc, webmmux, filesink] <- addManyLinked pipeline ["queue", "vp9enc", "webmmux", "valve", "filesink"]
+
+  -- Connect segments using T
+  branchPipeline tee networkQ
+  branchPipeline tee fileQ
+
+  -- Set properties
   GST.utilSetObjectArg source "pattern" "ball"
-
-  branchPipeline tee queue
-
   GST.utilSetObjectArg udpSink "host" "0.0.0.0"
   GST.utilSetObjectArg udpSink "port" "5000"
-
-  -- recording portion of the pipeline
-  [queue, valve, vp9enc, webmmux, filesink] <- addManyLinked pipeline ["queue", "vp9enc", "webmmux", "valve", "filesink"]
   GST.utilSetObjectArg filesink "location" "./test.webm"
   GST.utilSetObjectArg valve "drop" "true"
-
-  branchPipeline tee queue
 
   -- Start playing
   result <- GST.elementSetState pipeline GST.StatePlaying
