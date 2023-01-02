@@ -43,35 +43,34 @@ play config = do
     (throwM StateChangeError)
 
   -- Main message loop
-  let
-    stopRecording = do
-      GST.utilSetObjectArg valve "drop" "true"
-      liftIO $ putStrLn "Recording stopped"
+  let stopRecording = do
+        GST.utilSetObjectArg valve "drop" "true"
+        liftIO $ putStrLn "Recording stopped"
 
-    startRecording = do
-      GST.utilSetObjectArg valve "drop" "false"
-      GST.utilSetObjectArg filesink "location" "./test.webm"
-      liftIO $ putStrLn "Recording..."
+      startRecording = do
+        GST.utilSetObjectArg valve "drop" "false"
+        GST.utilSetObjectArg filesink "location" "./test.webm"
+        liftIO $ putStrLn "Recording..."
 
-    respondToMessages = do
-      msg <- waitForErrorOrEosOrElement pipeline
-      messageTypes <- GST.getMessageType msg
-      case messageTypes of
-        [GST.MessageTypeError] -> do
-          liftIO $ putStrLn "Error: "
-          (_, errorMessage) <- GST.messageParseError msg
-          liftIO $ print errorMessage
-          throwM WaitingError
-        [GST.MessageTypeElement] -> do
-          str <- maybeThrow MessageError $ GST.messageGetStructure msg
-          nfields <- GST.structureNFields str
-          when (nfields > 0) $ do
-            fname <- GST.structureNthFieldName str (fromIntegral nfields - 1)
-            when (fname == "motion_begin" || fname == "motion_finished") $ liftIO $ print $ "Motion change: " <> fname
-            when (fname == "motion_begin") startRecording
-            when (fname == "motion_finished") stopRecording
-        _ -> pure ()
-      respondToMessages
+      respondToMessages = do
+        msg <- waitForErrorOrEosOrElement pipeline
+        messageTypes <- GST.getMessageType msg
+        case messageTypes of
+          [GST.MessageTypeError] -> do
+            liftIO $ putStrLn "Error: "
+            (_, errorMessage) <- GST.messageParseError msg
+            liftIO $ print errorMessage
+            throwM WaitingError
+          [GST.MessageTypeElement] -> do
+            str <- maybeThrow MessageError $ GST.messageGetStructure msg
+            nfields <- GST.structureNFields str
+            when (nfields > 0) $ do
+              fname <- GST.structureNthFieldName str (fromIntegral nfields - 1)
+              when (fname == "motion_begin" || fname == "motion_finished") $ liftIO $ print $ "Motion change: " <> fname
+              when (fname == "motion_begin") startRecording
+              when (fname == "motion_finished") stopRecording
+          _ -> pure ()
+        respondToMessages
 
   respondToMessages
 
@@ -119,7 +118,5 @@ branchPipeline tee queue = do
   queuePad <- maybeThrow PadError $ GST.elementGetStaticPad queue "sink"
   r <- GST.padLink teePad queuePad
   unless (r == GST.PadLinkReturnOk) (throwM LinkingError)
-
-
 
 -- ❯ gst-launch-1.0 -v udpsrc port=5000  ! "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)VP9, payload=(int)96, ssrc=(uint)101494402, timestamp-offset=(uint)1062469180, seqnum-offset=(uint)10285, a-framerate=(string)30" ! rtpvp9depay ! vp9dec ! decodebin ! videoconvert ! autovideosink sync=false
