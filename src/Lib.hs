@@ -10,7 +10,7 @@ import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Data.Foldable (find)
-import Data.Maybe (isJust, fromJust)
+import Data.Maybe (fromJust, isJust)
 import Data.Text (Text)
 import qualified GI.Gst as GST
 import qualified GI.Gst.Objects.Element as GST
@@ -22,13 +22,10 @@ instance Exception GSError
 
 play :: Config -> IO ()
 play config = do
-  pipeline <-  makePipeline
-  elements <- addMany pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "videoconvert", "motioncells", "videoconvert", "tee", "queue", "autovideosink", "queue", "vp9enc", "rtpvp9pay", "udpsink"]
-  let source : _ : _ : lastConvert : tee : _ : _ : queue : vp9 : rtp : udpSink : _ = elements
-      pairsToLink = (zip <*> tail) (take 7 elements)
+  pipeline <- makePipeline
+  [source, _, _, lastConvert, tee, _, _] <- addManyLinked pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "videoconvert", "motioncells", "videoconvert", "tee", "queue", "autovideosink"]
+  [queue, vp9, rtp, udpSink] <- addManyLinked pipeline ["queue", "vp9enc", "rtpvp9pay", "udpsink"]
   GST.utilSetObjectArg source "pattern" "ball"
-
-  linkMany pairsToLink
 
   teeVideoSinkPad <- maybeThrow PadError $ GST.elementGetRequestPad tee "src_%u"
   qVideoSinkPad <- maybeThrow PadError $ GST.elementGetStaticPad queue "sink"
@@ -39,15 +36,11 @@ play config = do
   GST.utilSetObjectArg udpSink "host" "0.0.0.0"
   GST.utilSetObjectArg udpSink "port" "5000"
 
-  linkMany [(queue, vp9), (vp9, rtp), (rtp, udpSink)]
-
   -- recording portion of the pipeline
   teePad <- maybeThrow PadError $ GST.elementGetRequestPad tee "src_%u"
-  [queue, valve, vp9enc, webmmux, filesink] <- addMany pipeline ["queue", "valve", "vp9enc", "webmmux", "filesink"]
+  [queue, valve, vp9enc, webmmux, filesink] <- addManyLinked pipeline ["queue", "vp9enc", "webmmux", "valve", "filesink"]
   GST.utilSetObjectArg filesink "location" "./test.webm"
   GST.utilSetObjectArg valve "drop" "true"
-
-  linkMany [(queue, vp9enc), (vp9enc, webmmux), (webmmux, filesink)]
 
   queuePad <- maybeThrow PadError $ GST.elementGetStaticPad queue "sink"
   r <- GST.padLink teePad queuePad
@@ -61,7 +54,6 @@ play config = do
 
   -- Wait until error or EOS
   respondToMessages pipeline valve
-
   where
     stopRecording valve = do
       GST.utilSetObjectArg valve "drop" "true"
@@ -92,7 +84,7 @@ play config = do
 
       respondToMessages pipeline valve
 
-maybeThrow :: GSError -> IO (Maybe a)-> IO a
+maybeThrow :: GSError -> IO (Maybe a) -> IO a
 maybeThrow error action = do
   maybeAction <- action
   case maybeAction of
@@ -123,5 +115,11 @@ linkMany :: [(GST.Element, GST.Element)] -> IO ()
 linkMany pairsToLink = do
   linkResults <- mapM (uncurry GST.elementLink) pairsToLink
   unless (and linkResults) (throwM LinkingError)
+
+addManyLinked :: GST.Pipeline -> [Text] -> IO [GST.Element]
+addManyLinked pipeline elements = do
+  elements <- addMany pipeline elements
+  linkMany $ (zip <*> tail) elements
+  pure elements
 
 -- ❯ gst-launch-1.0 -v udpsrc port=5000  ! "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)VP9, payload=(int)96, ssrc=(uint)101494402, timestamp-offset=(uint)1062469180, seqnum-offset=(uint)10285, a-framerate=(string)30" ! rtpvp9depay ! vp9dec ! decodebin ! videoconvert ! autovideosink sync=false
