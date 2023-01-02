@@ -27,11 +27,7 @@ play config = do
   [queue, vp9, rtp, udpSink] <- addManyLinked pipeline ["queue", "vp9enc", "rtpvp9pay", "udpsink"]
   GST.utilSetObjectArg source "pattern" "ball"
 
-  teeVideoSinkPad <- maybeThrow PadError $ GST.elementGetRequestPad tee "src_%u"
-  qVideoSinkPad <- maybeThrow PadError $ GST.elementGetStaticPad queue "sink"
-  r <- GST.padLink teeVideoSinkPad qVideoSinkPad
-
-  unless (r == GST.PadLinkReturnOk) (throwM LinkingError)
+  branchPipeline tee queue
 
   GST.utilSetObjectArg udpSink "host" "0.0.0.0"
   GST.utilSetObjectArg udpSink "port" "5000"
@@ -121,5 +117,14 @@ addManyLinked pipeline elements = do
   elements <- addMany pipeline elements
   linkMany $ (zip <*> tail) elements
   pure elements
+
+branchPipeline :: GST.Element -> GST.Element -> IO ()
+branchPipeline tee queue = do
+  teePad <- maybeThrow PadError $ GST.elementGetRequestPad tee "src_%u"
+  queuePad <- maybeThrow PadError $ GST.elementGetStaticPad queue "sink"
+  r <- GST.padLink teePad queuePad
+  unless (r == GST.PadLinkReturnOk) (throwM LinkingError)
+
+
 
 -- ❯ gst-launch-1.0 -v udpsrc port=5000  ! "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)VP9, payload=(int)96, ssrc=(uint)101494402, timestamp-offset=(uint)1062469180, seqnum-offset=(uint)10285, a-framerate=(string)30" ! rtpvp9depay ! vp9dec ! decodebin ! videoconvert ! autovideosink sync=false
