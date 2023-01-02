@@ -9,6 +9,7 @@ import Control.Monad (unless, when)
 import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (liftIO)
 import Data.Text (Text)
+import qualified Data.Text as T
 import qualified GI.Gst as GST
 
 data GSError = LinkingError | StateChangeError | WaitingError | AddError | FactoryError | BusError | MessageError | PadError
@@ -31,8 +32,8 @@ play config = do
 
   -- Set properties
   GST.utilSetObjectArg source "pattern" "ball"
-  GST.utilSetObjectArg udpSink "host" "0.0.0.0"
-  GST.utilSetObjectArg udpSink "port" "5000"
+  GST.utilSetObjectArg udpSink "host" (configHost config)
+  GST.utilSetObjectArg udpSink "port" (T.pack $ show $ configPort config)
   GST.utilSetObjectArg filesink "location" "./test.webm"
   GST.utilSetObjectArg valve "drop" "true"
 
