@@ -15,5 +15,5 @@ To install libcamera from sources check their [getting started section](https://
 You can still run without libcamera using a test pattern:
 
 ```sh
-TEST=true cabal run motion-streamer
+MS_TEST=true cabal run motion-streamer
 ```
