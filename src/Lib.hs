@@ -4,16 +4,12 @@ module Lib
 where
 
 import Config
-import Control.Exception (Exception, throwIO)
+import Control.Exception (Exception)
 import Control.Monad (unless, when)
 import Control.Monad.Catch (throwM)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
-import Data.Foldable (find)
-import Data.Maybe (fromJust, isJust)
+import Control.Monad.IO.Class (liftIO)
 import Data.Text (Text)
 import qualified GI.Gst as GST
-import qualified GI.Gst.Objects.Element as GST
 
 data GSError = LinkingError | StateChangeError | WaitingError | AddError | FactoryError | BusError | MessageError | PadError
   deriving (Show)
@@ -25,9 +21,9 @@ play config = do
   pipeline <- makePipeline
 
   -- Add 3 segments to pipeline: source, network sink and file sink
-  [source, _, _, lastConvert, tee, _, _] <- addManyLinked pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "videoconvert", "motioncells", "videoconvert", "tee", "queue", "autovideosink"]
-  [networkQ, vp9, rtp, udpSink] <- addManyLinked pipeline ["queue", "vp9enc", "rtpvp9pay", "udpsink"]
-  [fileQ, valve, vp9enc, webmmux, filesink] <- addManyLinked pipeline ["queue", "vp9enc", "webmmux", "valve", "filesink"]
+  [source, _, _, _, tee, _, _] <- addManyLinked pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "videoconvert", "motioncells", "videoconvert", "tee", "queue", "autovideosink"]
+  [networkQ, _, _, udpSink] <- addManyLinked pipeline ["queue", "vp9enc", "rtpvp9pay", "udpsink"]
+  [fileQ, valve, _, _, filesink] <- addManyLinked pipeline ["queue", "vp9enc", "webmmux", "valve", "filesink"]
 
   -- Connect segments using T
   branchPipeline tee networkQ
@@ -51,10 +47,10 @@ play config = do
   where
     stopRecording valve = do
       GST.utilSetObjectArg valve "drop" "true"
-      liftIO $ print "Recording stopped"
+      liftIO $ putStrLn "Recording stopped"
     startRecording valve = do
       GST.utilSetObjectArg valve "drop" "false"
-      liftIO $ print "Recording..."
+      liftIO $ putStrLn "Recording..."
 
     respondToMessages pipeline valve = do
       msg <- waitForErrorOrEosOrElement pipeline
@@ -112,9 +108,9 @@ linkMany pairsToLink = do
 
 addManyLinked :: GST.Pipeline -> [Text] -> IO [GST.Element]
 addManyLinked pipeline elements = do
-  elements <- addMany pipeline elements
-  linkMany $ (zip <*> tail) elements
-  pure elements
+  e <- addMany pipeline elements
+  linkMany $ (zip <*> tail) e
+  pure e
 
 branchPipeline :: GST.Element -> GST.Element -> IO ()
 branchPipeline tee queue = do
