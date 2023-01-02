@@ -27,8 +27,7 @@ play config = do
   [fileQ, valve, _, _, filesink] <- addManyLinked pipeline ["queue", "vp9enc", "webmmux", "valve", "filesink"]
 
   -- Connect segments using T
-  branchPipeline tee networkQ
-  branchPipeline tee fileQ
+  mapM_ (branchPipeline tee) [networkQ, fileQ]
 
   -- Set properties
   GST.utilSetObjectArg source "pattern" "ball"
