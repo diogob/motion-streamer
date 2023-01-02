@@ -1,3 +1,3 @@
-# Changelog for gstreamer-test
+# Changelog for motion-streamer
 
 ## Unreleased changes
