@@ -43,20 +43,20 @@ play config = do
     (result == GST.StateChangeReturnFailure)
     (throwM StateChangeError)
 
-  -- Wait until error or EOS
-  respondToMessages pipeline valve
-  where
-    stopRecording valve = do
+  -- Main message loop
+  let
+    stopRecording = do
       GST.utilSetObjectArg valve "drop" "true"
       liftIO $ putStrLn "Recording stopped"
-    startRecording valve = do
+
+    startRecording = do
       GST.utilSetObjectArg valve "drop" "false"
+      GST.utilSetObjectArg filesink "location" "./test.webm"
       liftIO $ putStrLn "Recording..."
 
-    respondToMessages pipeline valve = do
+    respondToMessages = do
       msg <- waitForErrorOrEosOrElement pipeline
       messageTypes <- GST.getMessageType msg
-
       case messageTypes of
         [GST.MessageTypeError] -> do
           liftIO $ putStrLn "Error: "
@@ -69,11 +69,12 @@ play config = do
           when (nfields > 0) $ do
             fname <- GST.structureNthFieldName str (fromIntegral nfields - 1)
             when (fname == "motion_begin" || fname == "motion_finished") $ liftIO $ print $ "Motion change: " <> fname
-            when (fname == "motion_begin") $ startRecording valve
-            when (fname == "motion_finished") $ stopRecording valve
+            when (fname == "motion_begin") startRecording
+            when (fname == "motion_finished") stopRecording
         _ -> pure ()
+      respondToMessages
 
-      respondToMessages pipeline valve
+  respondToMessages
 
 maybeThrow :: GSError -> IO (Maybe a) -> IO a
 maybeThrow gsError action = do
