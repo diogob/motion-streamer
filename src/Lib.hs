@@ -33,14 +33,11 @@ play config = do
   GST.utilSetObjectArg udpSink "port" "5000"
 
   -- recording portion of the pipeline
-  teePad <- maybeThrow PadError $ GST.elementGetRequestPad tee "src_%u"
   [queue, valve, vp9enc, webmmux, filesink] <- addManyLinked pipeline ["queue", "vp9enc", "webmmux", "valve", "filesink"]
   GST.utilSetObjectArg filesink "location" "./test.webm"
   GST.utilSetObjectArg valve "drop" "true"
 
-  queuePad <- maybeThrow PadError $ GST.elementGetStaticPad queue "sink"
-  r <- GST.padLink teePad queuePad
-  unless (r == GST.PadLinkReturnOk) (throwM LinkingError)
+  branchPipeline tee queue
 
   -- Start playing
   result <- GST.elementSetState pipeline GST.StatePlaying
