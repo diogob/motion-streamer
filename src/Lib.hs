@@ -11,6 +11,7 @@ import Control.Monad.IO.Class (liftIO)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified GI.Gst as GST
+import Data.Time (getCurrentTime)
 
 data GSError = LinkingError | StateChangeError | WaitingError | AddError | FactoryError | BusError | MessageError | PadError
   deriving (Show)
@@ -30,10 +31,11 @@ play config = do
   mapM_ (branchPipeline tee) [networkQ, fileQ]
 
   -- Set properties
+  startTime <- getCurrentTime
+  GST.utilSetObjectArg filesink "location" ("./motion-" <> T.pack (show startTime)  <> ".webm")
   GST.utilSetObjectArg source "pattern" "ball"
   GST.utilSetObjectArg udpSink "host" (configHost config)
   GST.utilSetObjectArg udpSink "port" (T.pack $ show $ configPort config)
-  GST.utilSetObjectArg filesink "location" "./test.webm"
   GST.utilSetObjectArg valve "drop" "true"
 
   -- Start playing
@@ -49,7 +51,6 @@ play config = do
 
       startRecording = do
         GST.utilSetObjectArg valve "drop" "false"
-        GST.utilSetObjectArg filesink "location" "./test.webm"
         liftIO $ putStrLn "Recording..."
 
       respondToMessages = do
