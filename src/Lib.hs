@@ -25,7 +25,7 @@ play config = do
   -- Add 3 segments to pipeline: source, network sink and file sink
   [source, _, _, _, tee, _, _] <- addManyLinked pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "videoconvert", "motioncells", "videoconvert", "tee", "queue", "autovideosink"]
   [networkQ, _, _, udpSink] <- addManyLinked pipeline ["queue", "vp9enc", "rtpvp9pay", "udpsink"]
-  [fileQ, valve, _, _, filesink] <- addManyLinked pipeline ["queue", "vp9enc", "webmmux", "valve", "filesink"]
+  [fileQ, _, valve, _, filesink] <- addManyLinked pipeline ["queue", "vp9enc", "valve", "webmmux", "filesink"]
 
   -- Connect segments using T
   mapM_ (branchPipeline tee) [networkQ, fileQ]
@@ -47,10 +47,12 @@ play config = do
   -- Main message loop
   let stopRecording = do
         GST.utilSetObjectArg valve "drop" "true"
+        GST.utilSetObjectArg source "pattern" "ball"
         liftIO $ putStrLn "Recording stopped"
 
       startRecording = do
         GST.utilSetObjectArg valve "drop" "false"
+        GST.utilSetObjectArg source "pattern" "circular"
         liftIO $ putStrLn "Recording..."
 
       respondToMessages = do
