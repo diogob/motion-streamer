@@ -25,18 +25,18 @@ play config = do
   -- Add 3 segments to pipeline: source, network sink and file sink
   [source, tee] <- addManyLinked pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "tee"]
   [motionQ, _, _, _] <- addManyLinked pipeline ["queue", "videoconvert", "motioncells", "fakesink"]
-  [networkQ, _, _, udpSink] <- addManyLinked pipeline ["queue", "vp8enc", "rtpvp8pay", "udpsink"]
+  [networkQ, _, _, tcpSink] <- addManyLinked pipeline ["queue", "jpegenc", "avimux", "tcpserversink"]
   [fileQ, valve, _, _, filesink] <- addManyLinked pipeline ["queue", "valve", "jpegenc", "avimux", "filesink"]
 
   -- Connect segments using T
-  mapM_ (branchPipeline tee) [motionQ, networkQ, fileQ]
+  mapM_ (branchPipeline tee) [motionQ, fileQ, networkQ]
 
   -- Set properties
   startTime <- getCurrentTime
   GST.utilSetObjectArg filesink "location" ("./motion-" <> T.pack (show startTime)  <> ".avi")
   GST.utilSetObjectArg source "pattern" "ball"
-  GST.utilSetObjectArg udpSink "host" (configHost config)
-  GST.utilSetObjectArg udpSink "port" (T.pack $ show $ configPort config)
+  GST.utilSetObjectArg tcpSink "host" (configHost config)
+  GST.utilSetObjectArg tcpSink "port" (T.pack $ show $ configPort config)
   GST.utilSetObjectArg valve "drop" "false"
 
   -- Start playing
