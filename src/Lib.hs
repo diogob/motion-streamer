@@ -26,7 +26,7 @@ play config = do
   [source, tee] <- addManyLinked pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "tee"]
   [motionQ, _, _, _] <- addManyLinked pipeline ["queue", "videoconvert", "motioncells", "fakesink"]
   [networkQ, _, _, tcpSink] <- addManyLinked pipeline ["queue", "jpegenc", "avimux", "tcpserversink"]
-  [fileQ, valve, _, _, filesink] <- addManyLinked pipeline ["queue", "valve", "jpegenc", "avimux", "filesink"]
+  [fileQ, valve, _, _, _, filesink] <- addManyLinked pipeline ["queue", "valve", "clockoverlay", "jpegenc", "avimux", "filesink"]
 
   -- Connect segments using T
   mapM_ (branchPipeline tee) [motionQ, fileQ, networkQ]
