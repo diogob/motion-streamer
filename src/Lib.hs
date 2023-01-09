@@ -10,8 +10,8 @@ import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (liftIO)
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified GI.Gst as GST
 import Data.Time (getCurrentTime)
+import qualified GI.Gst as GST
 
 data GSError = LinkingError | StateChangeError | WaitingError | AddError | FactoryError | BusError | MessageError | PadError
   deriving (Show)
@@ -33,7 +33,7 @@ play config = do
 
   -- Set properties
   startTime <- getCurrentTime
-  GST.utilSetObjectArg filesink "location" ("./motion-" <> T.pack (show startTime)  <> ".avi")
+  GST.utilSetObjectArg filesink "location" ("./motion-" <> T.pack (show startTime) <> ".avi")
   GST.utilSetObjectArg source "pattern" "ball"
   GST.utilSetObjectArg tcpSink "host" (configHost config)
   GST.utilSetObjectArg tcpSink "port" (T.pack $ show $ configPort config)
