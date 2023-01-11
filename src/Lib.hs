@@ -24,10 +24,12 @@ play config = do
 
   -- Add 3 segments to pipeline: source, network sink and file sink
   [source, tee] <- addManyLinked pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "tee"]
-  [motionQ, _, _, _] <- addManyLinked pipeline ["queue", "videoconvert", "motioncells", "fakesink"]
+  [motionQ, _, scale] <- addManyLinked pipeline ["queue", "videorate", "videoscale"]
+  [convert, motion, _] <- addManyLinked pipeline ["videoconvert", "motioncells", "fakesink"]
   [networkQ, _, _, tcpSink] <- addManyLinked pipeline ["queue", "jpegenc", "avimux", "tcpserversink"]
   [fileQ, valve, clock, _, _, filesink] <- addManyLinked pipeline ["queue", "valve", "clockoverlay", "jpegenc", "avimux", "filesink"]
 
+  linkCaps "video/x-raw,width=320,height=240,framerate=5/1" scale convert
   -- Connect segments using T
   mapM_ (branchPipeline tee) [motionQ, fileQ, networkQ]
 
@@ -40,6 +42,7 @@ play config = do
   GST.utilSetObjectArg valve "drop" "false"
   GST.utilSetObjectArg clock "shaded-background" "true"
   GST.utilSetObjectArg clock "time-format" "%a %y-%m-%d %H:%M"
+  GST.utilSetObjectArg motion "display" "false"
 
   -- Start playing
   result <- GST.elementSetState pipeline GST.StatePlaying
@@ -111,6 +114,12 @@ linkMany :: [(GST.Element, GST.Element)] -> IO ()
 linkMany pairsToLink = do
   linkResults <- mapM (uncurry GST.elementLink) pairsToLink
   unless (and linkResults) (throwM LinkingError)
+
+linkCaps :: Text -> GST.Element -> GST.Element -> IO ()
+linkCaps caps elementA elementB = do
+  maybeCaps <- GST.capsFromString caps
+  linkResults <- GST.elementLinkFiltered elementA elementB maybeCaps
+  unless linkResults $ throwM LinkingError
 
 addManyLinked :: GST.Pipeline -> [Text] -> IO [GST.Element]
 addManyLinked pipeline elements = do
