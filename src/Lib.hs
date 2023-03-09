@@ -22,8 +22,14 @@ play :: Config -> IO ()
 play config = do
   pipeline <- makePipeline
 
-  -- Add 3 segments to pipeline: source, network sink and file sink
-  [source, tee] <- addManyLinked pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "tee"]
+  -- Add 4 segments to pipeline: 
+  -- source ---> motion detector -> fake sink
+  --         |-> network sink
+  --         |-> file sink
+
+  [source, tee] <- addMany pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "tee"]
+  linkCaps "video/x-raw,width=1280,height=960,framerate=24/1" source tee 
+
   [motionQ, _, scale] <- addManyLinked pipeline ["queue", "videorate", "videoscale"]
   [convert, motion, _] <- addManyLinked pipeline ["videoconvert", "motioncells", "fakesink"]
   [networkQ, _, _, tcpSink] <- addManyLinked pipeline ["queue", "jpegenc", "avimux", "tcpserversink"]
