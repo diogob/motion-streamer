@@ -50,6 +50,7 @@ play config = do
   GST.utilSetObjectArg clock "shaded-background" "true"
   GST.utilSetObjectArg clock "time-format" "%a %y-%m-%d %H:%M"
   GST.utilSetObjectArg motion "display" "false"
+  GST.utilSetObjectArg motion "sensitivity" $ configSensitivity config
 
   -- Start playing
   result <- GST.elementSetState pipeline GST.StatePlaying
