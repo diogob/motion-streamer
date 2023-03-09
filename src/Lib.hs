@@ -42,10 +42,11 @@ play config = do
   -- Set properties
   startTime <- getCurrentTime
   GST.utilSetObjectArg filesink "location" ("./motion-" <> T.pack (show startTime) <> ".avi")
+  GST.utilSetObjectArg filesink "async" "false"
   GST.utilSetObjectArg source "pattern" "ball"
   GST.utilSetObjectArg tcpSink "host" (configHost config)
   GST.utilSetObjectArg tcpSink "port" (T.pack $ show $ configPort config)
-  GST.utilSetObjectArg valve "drop" "false"
+  GST.utilSetObjectArg valve "drop" "true"
   GST.utilSetObjectArg clock "shaded-background" "true"
   GST.utilSetObjectArg clock "time-format" "%a %y-%m-%d %H:%M"
   GST.utilSetObjectArg motion "display" "false"
