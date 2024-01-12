@@ -28,7 +28,7 @@ play config = do
   --         |-> file sink
 
   [source, tee] <- addMany pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "tee"]
-  linkCaps "video/x-raw,width=1280,height=960,framerate=24/1" source tee 
+  linkCaps "video/x-raw,width=1024,height=768,framerate=24/1" source tee 
 
   [motionQ, _, scale] <- addManyLinked pipeline ["queue", "videorate", "videoscale"]
   [convert, motion, _] <- addManyLinked pipeline ["videoconvert", "motioncells", "fakesink"]
