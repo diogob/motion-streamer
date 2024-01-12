@@ -22,13 +22,13 @@ play :: Config -> IO ()
 play config = do
   pipeline <- makePipeline
 
-  -- Add 4 segments to pipeline: 
+  -- Add 4 segments to pipeline:
   -- source ---> motion detector -> fake sink
   --         |-> network sink
   --         |-> file sink
 
   [source, tee] <- addMany pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "tee"]
-  linkCaps "video/x-raw,width=1024,height=768,framerate=24/1" source tee 
+  linkCaps "video/x-raw,width=1024,height=768,framerate=24/1" source tee
 
   [motionQ, _, scale] <- addManyLinked pipeline ["queue", "videorate", "videoscale"]
   [convert, motion, _] <- addManyLinked pipeline ["videoconvert", "motioncells", "fakesink"]
@@ -41,16 +41,18 @@ play config = do
 
   -- Set properties
   startTime <- getCurrentTime
-  GST.utilSetObjectArg fileSink "location" ("./motion-" <> T.pack (show startTime) <> ".avi")
-  GST.utilSetObjectArg fileSink "async" "false"
-  GST.utilSetObjectArg source "pattern" "ball"
-  GST.utilSetObjectArg tcpSink "host" (configHost config)
-  GST.utilSetObjectArg tcpSink "port" (T.pack $ show $ configPort config)
-  GST.utilSetObjectArg valve "drop" "true"
-  GST.utilSetObjectArg clock "shaded-background" "true"
-  GST.utilSetObjectArg clock "time-format" "%a %y-%m-%d %H:%M"
-  GST.utilSetObjectArg motion "display" "false"
-  GST.utilSetObjectArg motion "sensitivity" $ configSensitivity config
+  setProperties
+    [ (fileSink, "location", "./motion-" <> T.pack (show startTime) <> ".avi"),
+      (fileSink, "async", "false"),
+      (source, "pattern", "ball"),
+      (tcpSink, "host", configHost config),
+      (tcpSink, "port", T.pack $ show $ configPort config),
+      (valve, "drop", "true"),
+      (clock, "shaded-background", "true"),
+      (clock, "time-format", "%a %y-%m-%d %H:%M"),
+      (motion, "display", "false"),
+      (motion, "sensitivity", configSensitivity config)
+    ]
 
   -- Start playing
   result <- GST.elementSetState pipeline GST.StatePlaying
@@ -90,6 +92,9 @@ play config = do
         respondToMessages
 
   respondToMessages
+
+setProperties :: [(GST.Element, Text, Text)] -> IO ()
+setProperties = mapM_ (\(el, prop, val) -> GST.utilSetObjectArg el prop val)
 
 maybeThrow :: GSError -> IO (Maybe a) -> IO a
 maybeThrow gsError action = do
