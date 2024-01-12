@@ -45,7 +45,6 @@ MS_HOST=localhost MS_PORT=8080 cabal run motion-streamer
 ## Using the camera
 
 Once you have the camera setup, you can run the application without the `MS_TEST` flag.
-**Important** The application always starts recording regardless of any movement. So if you have a static scene, move in front of the camera so the motion sensor will stop recording.
 
 ### Streaming the video captured by the camera
 
