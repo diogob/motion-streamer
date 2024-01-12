@@ -5,7 +5,7 @@
 There is no binary distribution yet, so you will need to download this repository and compile the sources.
 I have not tested cross-compilation, so I currently install all dependencies in the RPi and compile there.
 
-Also note that this was written based on my experience with the [Raspberry Pi OS](https://www.raspberrypi.com/software/) Bullseye, so in other operating systems your mileage may vary.
+Also note that this was written based on my experience with the [Raspberry Pi OS](https://www.raspberrypi.com/software/) Bookworm, so in other operating systems your mileage may vary.
 
 ### Required packages to compile
 
@@ -16,7 +16,7 @@ apt install libgirepository1.0-dev libgstreamer1.0-dev llvm libnuma-dev gstreame
 
 ### Haskell compiler
 
-While there is a package for `ghc` and `cabal-install` on Bullseye I had problems compiling under that version.
+While there is a package for `ghc` and `cabal-install` on Bookworm I had problems compiling under that version.
 The software was tested using GHC 9.2.5 and cabal 3.6.2.0.
 You can install from binary packages using [GHCup](https://www.haskell.org/ghcup/).
 Once you install GHCup try the command `ghcup tui` for a neat terminal ui that will show you all compiler and tool versions available.
