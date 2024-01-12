@@ -33,7 +33,7 @@ play config = do
   [motionQ, _, scale] <- addManyLinked pipeline ["queue", "videorate", "videoscale"]
   [convert, motion, _] <- addManyLinked pipeline ["videoconvert", "motioncells", "fakesink"]
   [networkQ, _, _, tcpSink] <- addManyLinked pipeline ["queue", "jpegenc", "avimux", "tcpserversink"]
-  [fileQ, valve, clock, _, _, filesink] <- addManyLinked pipeline ["queue", "valve", "clockoverlay", "jpegenc", "avimux", "filesink"]
+  [fileQ, valve, clock, _, _, fileSink] <- addManyLinked pipeline ["queue", "valve", "clockoverlay", "jpegenc", "avimux", "filesink"]
 
   linkCaps "video/x-raw,width=320,height=240,framerate=5/1" scale convert
   -- Connect segments using T
@@ -41,8 +41,8 @@ play config = do
 
   -- Set properties
   startTime <- getCurrentTime
-  GST.utilSetObjectArg filesink "location" ("./motion-" <> T.pack (show startTime) <> ".avi")
-  GST.utilSetObjectArg filesink "async" "false"
+  GST.utilSetObjectArg fileSink "location" ("./motion-" <> T.pack (show startTime) <> ".avi")
+  GST.utilSetObjectArg fileSink "async" "false"
   GST.utilSetObjectArg source "pattern" "ball"
   GST.utilSetObjectArg tcpSink "host" (configHost config)
   GST.utilSetObjectArg tcpSink "port" (T.pack $ show $ configPort config)
