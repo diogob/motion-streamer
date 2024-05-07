@@ -30,12 +30,12 @@ play config = do
   [source, tee] <- addMany pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "tee"]
   linkCaps "video/x-raw,width=1024,height=768,framerate=24/1" source tee 
 
-  [motionQ, _, scale] <- addManyLinked pipeline ["queue", "videorate", "videoscale"]
+  [motionQ, scale] <- addManyLinked pipeline ["queue", "videoscale"]
   [convert, motion, _] <- addManyLinked pipeline ["videoconvert", "motioncells", "fakesink"]
   [networkQ, _, _, tcpSink] <- addManyLinked pipeline ["queue", "jpegenc", "avimux", "tcpserversink"]
   [fileQ, valve, clock, _, _, fileSink] <- addManyLinked pipeline ["queue", "valve", "clockoverlay", "jpegenc", "avimux", "filesink"]
 
-  linkCaps "video/x-raw,width=320,height=240,framerate=5/1" scale convert
+  linkCaps "video/x-raw,width=320,height=240" scale convert
   -- Connect segments using T
   mapM_ (branchPipeline tee) [motionQ, fileQ, networkQ]
 
