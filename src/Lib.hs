@@ -13,7 +13,7 @@ import qualified Data.Text as T
 import Data.Time (getCurrentTime)
 import qualified GI.Gst as GST
 
-data GSError = LinkingError | StateChangeError | WaitingError | AddError | FactoryError | BusError | MessageError | PadError
+data GSError = LinkingError | StateChangeError | WaitingError | AddError | FactoryError Text | BusError | MessageError | PadError
   deriving (Show)
 
 instance Exception GSError
@@ -22,13 +22,13 @@ play :: Config -> IO ()
 play config = do
   pipeline <- makePipeline
 
-  -- Add 4 segments to pipeline: 
+  -- Add 4 segments to pipeline:
   -- source ---> motion detector -> fake sink
   --         |-> network sink
   --         |-> file sink
 
   [source, tee] <- addMany pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "tee"]
-  linkCaps "video/x-raw,width=1024,height=768,framerate=24/1" source tee 
+  linkCaps "video/x-raw,width=1024,height=768,framerate=24/1" source tee
 
   [motionQ, scale] <- addManyLinked pipeline ["queue", "videoscale"]
   [convert, motion, _] <- addManyLinked pipeline ["videoconvert", "motioncells", "fakesink"]
@@ -112,7 +112,7 @@ waitForErrorOrEosOrElement = waitForMessageTypes [GST.MessageTypeError, GST.Mess
 addMany :: GST.Pipeline -> [Text] -> IO [GST.Element]
 addMany pipeline names = do
   let make = flip GST.elementFactoryMake Nothing
-  let maybeMake name = maybeThrow FactoryError $ make name
+  let maybeMake name = maybeThrow (FactoryError name) $ make name
   elements <- mapM maybeMake names
   addResults <- mapM (GST.binAdd pipeline) elements
   when (any not addResults) (throwM AddError)
