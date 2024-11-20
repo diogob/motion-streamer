@@ -26,18 +26,24 @@ play config = do
   -- source ---> motion detector -> fake sink
   --         |-> network sink
   --         |-> file sink
-
   [source, tee] <- addMany pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "tee"]
-  linkCaps "video/x-raw,width=1024,height=768,framerate=24/1" source tee
+  linkCaps "video/x-raw,width=1024,height=768,framerate=24/1,format=YUY2,colorimetry=bt709,interlace-mode=progressive" source tee
+  -- gst-launch-1.0 libcamerasrc ! capsfilter caps=video/x-raw,width=1280,height=720,format=YUY2,colorimetry=bt709,interlace-mode=progressive ! v4l2h264enc extra-controls="controls,repeat_sequence_header=1" ! 'video/x-h264,level=(string)4' ! avimux ! tcpserversink host=0.0.0.0 port=5000
 
   [motionQ, scale] <- addManyLinked pipeline ["queue", "videoscale"]
   [convert, motion, _] <- addManyLinked pipeline ["videoconvert", "motioncells", "fakesink"]
-  [networkQ, _, _, tcpSink] <- addManyLinked pipeline ["queue", "jpegenc", "avimux", "tcpserversink"]
-  [fileQ, valve, clock, _, _, fileSink] <- addManyLinked pipeline ["queue", "valve", "clockoverlay", "jpegenc", "avimux", "filesink"]
-
   linkCaps "video/x-raw,width=320,height=240" scale convert
+
+  [tcpQ, tcpEnc] <- addManyLinked pipeline ["queue", "v4l2h264enc"]
+  [tcpMux, tcpSink] <- addManyLinked pipeline ["avimux", "tcpserversink"]
+  linkCaps "video/x-h264,level=(string)4" tcpEnc tcpMux
+
+  [fileQ, valve, clock, fileEnc] <- addManyLinked pipeline ["queue", "valve", "clockoverlay", "v4l2h264enc"]
+  [fileMux, fileSink] <- addManyLinked pipeline ["avimux", "filesink"]
+  linkCaps "video/x-h264,level=(string)4" fileEnc fileMux
+ 
   -- Connect segments using T
-  mapM_ (branchPipeline tee) [motionQ, fileQ, networkQ]
+  mapM_ (branchPipeline tee) [motionQ, fileQ, tcpQ]
 
   -- Set properties
   startTime <- getCurrentTime
