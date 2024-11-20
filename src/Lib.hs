@@ -137,7 +137,7 @@ addManyLinked pipeline elements = do
 
 branchPipeline :: GST.Element -> GST.Element -> IO ()
 branchPipeline tee queue = do
-  teePad <- maybeThrow PadError $ GST.elementGetRequestPad tee "src_%u"
+  teePad <- maybeThrow PadError $ GST.elementRequestPadSimple tee "src_%u"
   queuePad <- maybeThrow PadError $ GST.elementGetStaticPad queue "sink"
   r <- GST.padLink teePad queuePad
   unless (r == GST.PadLinkReturnOk) (throwM LinkingError)
