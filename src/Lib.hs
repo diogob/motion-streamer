@@ -28,15 +28,15 @@ play config = do
   --         |-> file sink
   [source, tee] <- addMany pipeline [if configTest config then "videotestsrc" else "libcamerasrc", "tee"]
   linkCaps "video/x-raw,width=1024,height=768,framerate=24/1,format=YUY2,colorimetry=bt709,interlace-mode=progressive" source tee
-  -- gst-launch-1.0 libcamerasrc ! capsfilter caps=video/x-raw,width=1280,height=720,format=YUY2,colorimetry=bt709,interlace-mode=progressive ! v4l2h264enc extra-controls="controls,repeat_sequence_header=1" ! 'video/x-h264,level=(string)4' ! avimux ! tcpserversink host=0.0.0.0 port=5000
 
   [motionQ, scale] <- addManyLinked pipeline ["queue", "videoscale"]
   [convert, motion, _] <- addManyLinked pipeline ["videoconvert", "motioncells", "fakesink"]
   linkCaps "video/x-raw,width=320,height=240" scale convert
 
   [tcpQ, tcpEnc] <- addManyLinked pipeline ["queue", "v4l2h264enc"]
-  [tcpMux, tcpSink] <- addManyLinked pipeline ["avimux", "tcpserversink"]
+  [tcpMux, tcpSink] <- addManyLinked pipeline ["h264parse", "tcpserversink"]
   linkCaps "video/x-h264,level=(string)4" tcpEnc tcpMux
+  -- Raw h264 bitstream. Client-side: gst-launch-1.0 -v tcpclientsrc host=rpi port=5000 ! h264parse ! avdec_h264 ! autovideosink 
 
   [fileQ, valve, clock, fileEnc] <- addManyLinked pipeline ["queue", "valve", "clockoverlay", "v4l2h264enc"]
   [fileMux, fileSink] <- addManyLinked pipeline ["avimux", "filesink"]
@@ -57,6 +57,7 @@ play config = do
   GST.utilSetObjectArg clock "time-format" "%a %y-%m-%d %H:%M"
   GST.utilSetObjectArg motion "display" "false"
   GST.utilSetObjectArg motion "sensitivity" $ configSensitivity config
+  GST.utilSetObjectArg tcpMux "config-interval" "1"
 
   -- Start playing
   result <- GST.elementSetState pipeline GST.StatePlaying
