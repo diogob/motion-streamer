@@ -5,13 +5,15 @@ where
 
 import Config
 import Control.Exception (Exception)
-import Control.Monad (unless, when)
+import Control.Monad (unless, when, void)
 import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (liftIO)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (getCurrentTime)
+import qualified GI.GLib as GLib
 import qualified GI.Gst as GST
+import Control.Concurrent (threadDelay)
 
 data GSError = LinkingError | StateChangeError | WaitingError | AddError | FactoryError Text | BusError | MessageError | PadError
   deriving (Show)
@@ -36,12 +38,12 @@ play config = do
   [tcpQ, tcpEnc] <- addManyLinked pipeline ["queue", "v4l2h264enc"]
   [tcpMux, tcpSink] <- addManyLinked pipeline ["h264parse", "tcpserversink"]
   linkCaps "video/x-h264,level=(string)4" tcpEnc tcpMux
-  -- Raw h264 bitstream. Client-side: gst-launch-1.0 -v tcpclientsrc host=rpi port=5000 ! h264parse ! avdec_h264 ! autovideosink 
+  -- Raw h264 bitstream. Client-side: gst-launch-1.0 -v tcpclientsrc host=rpi port=5000 ! h264parse ! avdec_h264 ! autovideosink
 
   [fileQ, valve, clock, fileEnc] <- addManyLinked pipeline ["queue", "valve", "clockoverlay", "v4l2h264enc"]
   [fileMux, fileSink] <- addManyLinked pipeline ["avimux", "filesink"]
   linkCaps "video/x-h264,level=(string)4" fileEnc fileMux
- 
+
   -- Connect segments using T
   mapM_ (branchPipeline tee) [motionQ, fileQ, tcpQ]
 
@@ -59,11 +61,13 @@ play config = do
   GST.utilSetObjectArg motion "sensitivity" $ configSensitivity config
   GST.utilSetObjectArg tcpMux "config-interval" "1"
 
+  bus <- GST.pipelineGetBus pipeline
   -- Start playing
   result <- GST.elementSetState pipeline GST.StatePlaying
   when
     (result == GST.StateChangeReturnFailure)
     (throwM StateChangeError)
+  putStrLn "Pipeline set to PLAYING state."
 
   -- Main message loop
   let stopRecording = do
@@ -76,8 +80,8 @@ play config = do
         GST.utilSetObjectArg source "pattern" "circular"
         liftIO $ putStrLn "Recording..."
 
-      respondToMessages = do
-        msg <- waitForErrorOrEosOrElement pipeline
+      respondToMessages :: GST.Bus -> GST.Message -> IO Bool
+      respondToMessages _ msg = do
         messageTypes <- GST.getMessageType msg
         case messageTypes of
           [GST.MessageTypeError] -> do
@@ -94,9 +98,21 @@ play config = do
               when (fname == "motion_begin") startRecording
               when (fname == "motion_finished") stopRecording
           _ -> pure ()
-        respondToMessages
+        return True
 
-  respondToMessages
+ 
+  void $ GST.busAddWatch bus GLib.PRIORITY_DEFAULT respondToMessages
+   -- Start the main loop to handle messages
+  loop <- GLib.mainLoopNew Nothing False
+  GLib.mainLoopRun loop
+
+  -- Let the pipeline run for a while
+  threadDelay (10 * 1000000)
+
+  -- Cleanup
+  putStrLn "Stopping pipeline."
+  void $ GST.elementSetState pipeline GST.StateNull
+  putStrLn "Pipeline stopped."
 
 maybeThrow :: GSError -> IO (Maybe a) -> IO a
 maybeThrow gsError action = do
@@ -107,14 +123,6 @@ maybeThrow gsError action = do
 
 makePipeline :: IO GST.Pipeline
 makePipeline = GST.init Nothing >> GST.pipelineNew Nothing
-
-waitForMessageTypes :: [GST.MessageType] -> GST.Pipeline -> IO GST.Message
-waitForMessageTypes messageTypes pipeline = do
-  b <- maybeThrow BusError $ GST.elementGetBus pipeline
-  maybeThrow MessageError $ GST.busTimedPopFiltered b GST.CLOCK_TIME_NONE messageTypes
-
-waitForErrorOrEosOrElement :: GST.Pipeline -> IO GST.Message
-waitForErrorOrEosOrElement = waitForMessageTypes [GST.MessageTypeError, GST.MessageTypeEos, GST.MessageTypeElement]
 
 addMany :: GST.Pipeline -> [Text] -> IO [GST.Element]
 addMany pipeline names = do
