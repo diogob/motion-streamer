@@ -5,7 +5,7 @@ where
 
 import Config
 import Control.Exception (Exception)
-import Control.Monad (unless, when, void)
+import Control.Monad (unless, when, void, (>=>))
 import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (liftIO)
 import Data.Text (Text)
@@ -21,7 +21,24 @@ data GSError = LinkingError | StateChangeError | WaitingError | AddError | Facto
 instance Exception GSError
 
 play :: Config -> IO ()
-play config = do
+play = setupPipeline >=> loopAndClear
+
+loopAndClear :: GST.Pipeline -> IO ()
+loopAndClear pipeline = do
+   -- Start the main loop to handle messages
+  loop <- GLib.mainLoopNew Nothing False
+  GLib.mainLoopRun loop
+
+  -- Let the pipeline run for a while
+  threadDelay (10 * 1000000)
+
+  -- Cleanup
+  putStrLn "Stopping pipeline."
+  void $ GST.elementSetState pipeline GST.StateNull
+  putStrLn "Pipeline stopped."
+
+setupPipeline :: Config -> IO GST.Pipeline
+setupPipeline config = do
   pipeline <- makePipeline
 
   -- Add 4 segments to pipeline:
@@ -106,17 +123,7 @@ play config = do
 
  
   void $ GST.busAddWatch bus GLib.PRIORITY_DEFAULT respondToMessages
-   -- Start the main loop to handle messages
-  loop <- GLib.mainLoopNew Nothing False
-  GLib.mainLoopRun loop
-
-  -- Let the pipeline run for a while
-  threadDelay (10 * 1000000)
-
-  -- Cleanup
-  putStrLn "Stopping pipeline."
-  void $ GST.elementSetState pipeline GST.StateNull
-  putStrLn "Pipeline stopped."
+  pure pipeline
 
 maybeThrow :: GSError -> IO (Maybe a) -> IO a
 maybeThrow gsError action = do
