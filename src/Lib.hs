@@ -54,7 +54,7 @@ play config = do
   GST.utilSetObjectArg source "pattern" "ball"
   GST.utilSetObjectArg tcpSink "host" (configHost config)
   GST.utilSetObjectArg tcpSink "port" (T.pack $ show $ configPort config)
-  GST.utilSetObjectArg valve "drop" "true"
+  GST.utilSetObjectArg valve "drop" "false"
   GST.utilSetObjectArg clock "shaded-background" "true"
   GST.utilSetObjectArg clock "time-format" "%a %y-%m-%d %H:%M"
   GST.utilSetObjectArg motion "display" "false"
@@ -89,6 +89,10 @@ play config = do
             (_, errorMessage) <- GST.messageParseError msg
             liftIO $ print errorMessage
             throwM WaitingError
+          [GST.MessageTypeStreamStart] -> do
+            liftIO $ putStrLn "Start streaming"
+            threadDelay (10 * 1000000)
+            stopRecording
           [GST.MessageTypeElement] -> do
             str <- maybeThrow MessageError $ GST.messageGetStructure msg
             nfields <- GST.structureNFields str
