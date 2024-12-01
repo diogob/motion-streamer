@@ -10,10 +10,11 @@ import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (liftIO)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time (getCurrentTime)
+import Data.Time ( getCurrentTime, defaultTimeLocale )
 import qualified GI.GLib as GLib
 import qualified GI.Gst as GST
 import Control.Concurrent (threadDelay)
+import Data.Time.Format (formatTime)
 
 data GSError = LinkingError | StateChangeError | WaitingError | AddError | FactoryError Text | BusError | MessageError | PadError
   deriving (Show)
@@ -66,7 +67,7 @@ setupPipeline config = do
 
   -- Set properties
   startTime <- getCurrentTime
-  GST.utilSetObjectArg fileSink "location" ("./motion-" <> T.pack (show startTime) <> ".avi")
+  GST.utilSetObjectArg fileSink "location" ("./motion-" <> T.pack (formatTime defaultTimeLocale "%Y-%m-%d-%H%M" startTime) <> ".avi")
   GST.utilSetObjectArg fileSink "async" "false"
   GST.utilSetObjectArg source "pattern" "ball"
   GST.utilSetObjectArg tcpSink "host" (configHost config)
@@ -121,7 +122,7 @@ setupPipeline config = do
           _ -> pure ()
         return True
 
- 
+
   void $ GST.busAddWatch bus GLib.PRIORITY_DEFAULT respondToMessages
   pure pipeline
 
