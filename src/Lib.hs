@@ -15,6 +15,7 @@ import qualified GI.GLib as GLib
 import qualified GI.Gst as GST
 import Control.Concurrent (threadDelay)
 import Data.Time.Format (formatTime)
+import System.Directory (getFileSize)
 
 data GSError = LinkingError | StateChangeError | WaitingError | AddError | FactoryError Text | BusError | MessageError | PadError
   deriving (Show)
@@ -67,7 +68,8 @@ setupPipeline config = do
 
   -- Set properties
   startTime <- getCurrentTime
-  GST.utilSetObjectArg fileSink "location" ("./motion-" <> T.pack (formatTime defaultTimeLocale "%Y-%m-%d-%H%M" startTime) <> ".avi")
+  let fileName = "./motion-" <> T.pack (formatTime defaultTimeLocale "%Y-%m-%d-%H%M" startTime) <> ".avi"
+  GST.utilSetObjectArg fileSink "location" fileName
   GST.utilSetObjectArg fileSink "async" "false"
   GST.utilSetObjectArg source "pattern" "ball"
   GST.utilSetObjectArg tcpSink "host" (configHost config)
@@ -92,6 +94,12 @@ setupPipeline config = do
         GST.utilSetObjectArg valve "drop" "true"
         GST.utilSetObjectArg source "pattern" "ball"
         liftIO $ putStrLn "Recording stopped"
+        fileSize <- getFileSize (T.unpack fileName :: String)
+        when (fileSize > 1000000) $ do
+          liftIO $ putStrLn "over limit"
+          void $ GST.elementSetState pipeline GST.StateNull
+          threadDelay (10 * 1000000)
+          void $ setupPipeline config
 
       startRecording = do
         GST.utilSetObjectArg valve "drop" "false"
