@@ -60,17 +60,19 @@ setupPipeline config = do
   -- Raw h264 bitstream. Client-side: gst-launch-1.0 -v tcpclientsrc host=rpi port=5000 ! h264parse ! avdec_h264 ! autovideosink
 
   [fileQ, valve, clock, fileEnc] <- addManyLinked pipeline ["queue", "valve", "clockoverlay", "v4l2h264enc"]
-  [fileMux, fileSink] <- addManyLinked pipeline ["avimux", "filesink"]
-  linkCaps "video/x-h264,level=(string)4" fileEnc fileMux
+  [fileParse, fileSink] <- addManyLinked pipeline ["h264parse", "splitmuxsink"]
+  GST.utilSetObjectArg fileSink "async-finalize" "true"
+  GST.utilSetObjectArg fileSink "muxer-factory" "mp4mux"
+  GST.utilSetObjectArg fileSink "max-files" "5"
+  GST.utilSetObjectArg fileSink "max-size-bytes" "1000000"
+  linkCaps "video/x-h264,level=(string)4" fileEnc fileParse
 
   -- Connect segments using T
   mapM_ (branchPipeline tee) [motionQ, fileQ, tcpQ]
 
   -- Set properties
-  startTime <- getCurrentTime
-  let fileName = "./motion-" <> T.pack (formatTime defaultTimeLocale "%Y-%m-%d-%H%M" startTime) <> ".avi"
+  let fileName = "./motion-%05d.mov"
   GST.utilSetObjectArg fileSink "location" fileName
-  GST.utilSetObjectArg fileSink "async" "false"
   GST.utilSetObjectArg source "pattern" "ball"
   GST.utilSetObjectArg tcpSink "host" (configHost config)
   GST.utilSetObjectArg tcpSink "port" (T.pack $ show $ configPort config)
@@ -94,12 +96,6 @@ setupPipeline config = do
         GST.utilSetObjectArg valve "drop" "true"
         GST.utilSetObjectArg source "pattern" "ball"
         liftIO $ putStrLn "Recording stopped"
-        fileSize <- getFileSize (T.unpack fileName :: String)
-        when (fileSize > 1000000) $ do
-          liftIO $ putStrLn "over limit"
-          void $ GST.elementSetState pipeline GST.StateNull
-          threadDelay (10 * 1000000)
-          void $ setupPipeline config
 
       startRecording = do
         GST.utilSetObjectArg valve "drop" "false"
