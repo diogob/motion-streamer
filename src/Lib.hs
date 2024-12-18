@@ -95,7 +95,7 @@ setupPipeline config = do
         GST.utilSetObjectArg source "pattern" "ball"
         liftIO $ putStrLn "Recording stopped"
         fileSize <- getFileSize (T.unpack fileName :: String)
-        when (fileSize > 1000000) $ do
+        when (fileSize > 50000000) $ do
           liftIO $ putStrLn "over limit"
           void $ GST.elementSetState pipeline GST.StateNull
           threadDelay (10 * 1000000)
